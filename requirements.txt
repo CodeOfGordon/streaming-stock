@@ -1,0 +1,11 @@
+python-dotenv
+pyarrow
+pandas
+numpy
+matplotlib
+torch   
+scikit-learn
+alpaca-py
+aiohttp
+kafka-python
+websockets

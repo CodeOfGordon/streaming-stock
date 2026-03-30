@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Price Predictions - Live</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .status-connecting {
+            background: #ffd93d;
+            color: #664d00;
+        }
+
+        .status-connected {
+            background: #6bcf7f;
+            color: #0f5132;
+        }
+
+        .status-disconnected {
+            background: #ff6b6b;
+            color: #fff;
+        }
+
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .symbol-input {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .symbol-input input {
+            flex: 1;
+            min-width: 200px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .symbol-input input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            padding: 12px 25px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .predictions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .prediction-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            transition: all 0.3s;
+            animation: fadeIn 0.5s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .prediction-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .symbol {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .direction {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        /* Directional signal badges:
+           - Bullish (green):  predicted return exceeds the noise threshold
+           - Bearish (red):    predicted return is below negative noise threshold
+           - Neutral (grey):   predicted return is within the noise band — model has
+                               no strong directional conviction; neither buy nor sell signal.
+             Colouring a ±0.0005% prediction green/red implies false confidence.
+             Large-cap 1-minute returns are typically 1–5 basis points (0.01–0.05%),
+             so anything under ~2bp is indistinguishable from microstructure noise. */
+        .direction-up {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .direction-down {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .direction-neutral {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .price-section {
+            margin-bottom: 15px;
+        }
+
+        .price-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .price-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .predicted-change {
+            font-size: 18px;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        /* Change colours mirror the badge logic — neutral when within noise band */
+        .predicted-change.positive {
+            color: #28a745;
+        }
+
+        .predicted-change.negative {
+            color: #dc3545;
+        }
+
+        .predicted-change.neutral {
+            color: #6c757d;
+        }
+
+        /* Signal strength bar: visualises how far the predicted return is from zero
+           relative to the noise threshold. Helps the user see model conviction at a
+           glance without having to parse 6dp numbers. */
+        .signal-bar-container {
+            margin-top: 12px;
+            margin-bottom: 4px;
+        }
+
+        .signal-bar-label {
+            font-size: 11px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .signal-bar-track {
+            height: 6px;
+            background: #f0f0f0;
+            border-radius: 3px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Centre tick marks the zero-return / noise-band midpoint */
+        .signal-bar-track::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: #ccc;
+            transform: translateX(-50%);
+        }
+
+        .signal-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.4s ease, background 0.4s ease;
+            position: absolute;
+            top: 0;
+        }
+
+        /* Bar grows from centre outward in the predicted direction */
+        .signal-bar-fill.fill-up {
+            left: 50%;
+            background: #28a745;
+        }
+
+        .signal-bar-fill.fill-down {
+            right: 50%;
+            background: #dc3545;
+        }
+
+        .signal-bar-fill.fill-neutral {
+            left: 45%;
+            width: 10% !important;
+            background: #adb5bd;
+        }
+
+        .metadata {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .timestamp {
+            font-style: italic;
+        }
+
+        .latency {
+            font-weight: 600;
+        }
+
+        .no-predictions {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .stats {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-top: 5px;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 Stock Price Predictions - Live Dashboard</h1>
+            <span id="status" class="connection-status status-connecting">Connecting...</span>
+        </div>
+
+        <div class="controls">
+            <div class="symbol-input">
+                <input 
+                    type="text" 
+                    id="symbolInput" 
+                    placeholder="Enter symbols (e.g., AAPL, GOOGL, MSFT)" 
+                    value="AAPL,GOOGL,MSFT"
+                >
+                <button onclick="subscribeSymbols()">Subscribe</button>
+                <button onclick="clearPredictions()" style="background: #dc3545;">Clear</button>
+            </div>
+        </div>
+
+        <div class="predictions-grid" id="predictionsGrid">
+            <div class="no-predictions">
+                <p>🔌 Connecting to prediction stream...</p>
+                <p style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
+                    Subscribe to symbols above to see real-time predictions
+                </p>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="predictionCount">0</div>
+                    <div class="stat-label">Predictions</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="symbolCount">0</div>
+                    <div class="stat-label">Symbols</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="avgLatency">0ms</div>
+                    <div class="stat-label">Avg Latency</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="uptime">0s</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        
+        // State
+        const predictions = new Map();
+        let predictionCount = 0;
+        let latencies = [];
+        const startTime = Date.now();
+
+        // Noise threshold for large-cap 1-minute bars.
+        // Typical 1-min returns for AAPL/GOOGL/MSFT are 1–5 basis points (0.0001–0.0005).
+        // Predictions within ±NOISE_THRESHOLD are treated as "no strong signal" and
+        // rendered neutral (grey) rather than green/red. This prevents the dashboard
+        // from implying directional conviction on microstructure noise.
+        // 2 basis points = 0.0002 (0.02%) — adjust upward if model is well-calibrated
+        // and frequently produces larger predictions.
+        const NOISE_THRESHOLD = 0.0002;
+
+        // Connect to WebSocket server
+        function connect() {
+            const wsUrl = 'ws://localhost:8765';
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('Connected to prediction stream');
+                updateStatus('connected');
+                reconnectAttempts = 0;
+                
+                // Auto-subscribe to default symbols
+                const input = document.getElementById('symbolInput');
+                if (input.value) {
+                    subscribeSymbols();
+                }
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                handleMessage(message);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+
+            ws.onclose = () => {
+                console.log('Disconnected from prediction stream');
+                updateStatus('disconnected');
+                
+                // Attempt reconnection
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    console.log(`Reconnecting... (attempt ${reconnectAttempts})`);
+                    setTimeout(connect, 3000);
+                }
+            };
+        }
+
+        // Handle incoming messages
+        function handleMessage(message) {
+            switch (message.type) {
+                case 'connected':
+                    console.log('Welcome:', message.message);
+                    break;
+                
+                case 'prediction':
+                    handlePrediction(message.data);
+                    break;
+                
+                case 'latest':
+                    if (message.data) {
+                        handlePrediction(message.data);
+                    }
+                    break;
+                
+                case 'subscribed':
+                    console.log('Subscribed to:', message.symbols);
+                    break;
+                
+                case 'error':
+                    console.error('Server error:', message.message);
+                    break;
+            }
+        }
+
+        // Handle prediction update
+        function handlePrediction(prediction) {
+            const symbol = prediction.symbol;
+            
+            // Update prediction
+            predictions.set(symbol, prediction);
+            predictionCount++;
+            
+            // Track latency
+            if (prediction.latency_ms) {
+                latencies.push(prediction.latency_ms);
+                if (latencies.length > 100) latencies.shift();
+            }
+            
+            // Update UI
+            updatePredictionCard(prediction);
+            updateStats();
+        }
+
+        // Classify a predicted return into a signal tier.
+        //
+        // The model predicts next-minute return (e.g. 0.0033 = +0.33%).
+        // Direction alone (positive = green) is misleading for large-cap stocks
+        // where 1-minute moves are typically just a few basis points — a prediction
+        // of +0.0002% is noise, not a buy signal.
+        //
+        // Instead, colour reflects conviction:
+        //   |return| > NOISE_THRESHOLD  →  directional (green or red)
+        //   |return| ≤ NOISE_THRESHOLD  →  neutral (grey)  "no strong view"
+        //
+        // Returns: { badge, badgeClass, changeClass, barClass, barPct }
+        function classifySignal(returnValue) {
+            const absPct = Math.abs(returnValue);
+            const isAboveNoise = absPct > NOISE_THRESHOLD;
+
+            if (!isAboveNoise) {
+                return {
+                    badge:       '— NEUTRAL',
+                    badgeClass:  'direction-neutral',
+                    changeClass: 'neutral',
+                    barClass:    'fill-neutral',
+                    // Flat bar centred at zero — width is irrelevant for neutral fills
+                    barPct:      0,
+                };
+            }
+
+            // Cap bar width at 50% of the track (each side of centre = 50%).
+            // Scale: NOISE_THRESHOLD maps to 5%, 10× threshold maps to 50%.
+            // This gives a visible bar for typical 1-min moves without saturating
+            // immediately on any modestly sized prediction.
+            const barPct = Math.min((absPct / NOISE_THRESHOLD) * 5, 50);
+
+            if (returnValue > 0) {
+                return {
+                    badge:       'UP ↑',
+                    badgeClass:  'direction-up',
+                    changeClass: 'positive',
+                    barClass:    'fill-up',
+                    barPct,
+                };
+            } else {
+                return {
+                    badge:       'DOWN ↓',
+                    badgeClass:  'direction-down',
+                    changeClass: 'negative',
+                    barClass:    'fill-down',
+                    barPct,
+                };
+            }
+        }
+
+        // Update prediction card
+        function updatePredictionCard(pred) {
+            const grid = document.getElementById('predictionsGrid');
+            const cardId = `card-${pred.symbol}`;
+            let card = document.getElementById(cardId);
+            
+            // Remove "no predictions" message
+            const noPredsMsg = grid.querySelector('.no-predictions');
+            if (noPredsMsg) noPredsMsg.remove();
+            
+            // Create card if doesn't exist
+            if (!card) {
+                card = document.createElement('div');
+                card.id = cardId;
+                card.className = 'prediction-card';
+                grid.appendChild(card);
+            }
+            
+            // Calculate values
+            const isReturn = pred.prediction_type === 'return';
+            const predictedPrice = pred.predicted_price || 
+                (isReturn ? pred.current_price * (1 + pred.prediction) : pred.prediction);
+            const change = predictedPrice - pred.current_price;
+            const changePercent = (change / pred.current_price) * 100;
+
+            // Classify signal — this drives all colour/badge decisions
+            const signal = classifySignal(pred.prediction);
+            
+            // Format timestamp
+            const timestamp = new Date(pred.timestamp).toLocaleTimeString();
+            
+            // Render card
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="symbol">${pred.symbol}</div>
+                    <div class="direction ${signal.badgeClass}">
+                        ${signal.badge}
+                    </div>
+                </div>
+                
+                <div class="price-section">
+                    <div class="price-label">Current Price</div>
+                    <div class="price-value">$${pred.current_price.toFixed(2)}</div>
+                </div>
+                
+                <div class="price-section">
+                    <div class="price-label">Predicted Price</div>
+                    <div class="price-value pulse">$${predictedPrice.toFixed(4)}</div>
+                    <div class="predicted-change ${signal.changeClass}">
+                        ${change >= 0 ? '+' : ''}${change.toFixed(4)} 
+                        (${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(4)}%)
+                    </div>
+                </div>
+
+                <!-- Signal strength bar: shows how far the predicted return exceeds
+                     the noise threshold. A flat/grey bar = model has no strong view.
+                     A long green/red bar = model has high directional conviction. -->
+                <div class="signal-bar-container">
+                    <div class="signal-bar-label">
+                        <span>Signal Strength</span>
+                        <span>${(Math.abs(pred.prediction) * 100).toFixed(4)}% predicted return</span>
+                    </div>
+                    <div class="signal-bar-track">
+                        <div 
+                            class="signal-bar-fill ${signal.barClass}" 
+                            style="width: ${signal.barPct}%"
+                        ></div>
+                    </div>
+                </div>
+                
+                <div class="metadata">
+                    <span class="timestamp">${timestamp}</span>
+                    <span class="latency">${pred.latency_ms?.toFixed(1) || '0'}ms</span>
+                </div>
+            `;
+            
+            // Add flash animation
+            card.style.animation = 'none';
+            setTimeout(() => {
+                card.style.animation = 'fadeIn 0.5s';
+            }, 10);
+        }
+
+        // Update stats
+        function updateStats() {
+            document.getElementById('predictionCount').textContent = predictionCount;
+            document.getElementById('symbolCount').textContent = predictions.size;
+            
+            if (latencies.length > 0) {
+                const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
+                document.getElementById('avgLatency').textContent = avgLatency.toFixed(1) + 'ms';
+            }
+            
+            const uptime = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('uptime').textContent = uptime + 's';
+        }
+
+        // Update connection status
+        function updateStatus(status) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `connection-status status-${status}`;
+            
+            const statusText = {
+                'connecting': 'Connecting...',
+                'connected': '✓ Connected',
+                'disconnected': '✗ Disconnected'
+            };
+            
+            statusEl.textContent = statusText[status] || status;
+        }
+
+        // Subscribe to symbols
+        function subscribeSymbols() {
+            const input = document.getElementById('symbolInput');
+            const symbols = input.value.split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+            
+            if (symbols.length === 0) {
+                alert('Please enter at least one symbol');
+                return;
+            }
+            
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'subscribe',
+                    symbols: symbols
+                }));
+            } else {
+                alert('Not connected to server');
+            }
+        }
+
+        // Clear predictions
+        function clearPredictions() {
+            predictions.clear();
+            predictionCount = 0;
+            latencies = [];
+            
+            const grid = document.getElementById('predictionsGrid');
+            grid.innerHTML = `
+                <div class="no-predictions">
+                    <p>No predictions yet</p>
+                    <p style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
+                        Subscribe to symbols to see predictions
+                    </p>
+                </div>
+            `;
+            
+            updateStats();
+        }
+
+        // Handle Enter key in input
+        document.getElementById('symbolInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                subscribeSymbols();
+            }
+        });
+
+        // Update uptime every second
+        setInterval(updateStats, 1000);
+
+        // Connect on load
+        connect();
+    </script>
+</body>
+</html>
