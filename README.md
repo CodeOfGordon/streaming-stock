@@ -107,6 +107,7 @@ All windows are calibrated for **1-minute bars**: 60 bars = 1 hour, 390 bars = 1
 ## Price-based features
 - `returns`
 - `log_returns`
+
 $$\text{returns} = (close_t - close_{t-1}) / close_{t-1}$$
 $$\text{log.returns} = ln((close_t - close_{t-1}) / close_{t-1})$$
 
@@ -117,16 +118,19 @@ Normally, including both would be redundant and introduce multi-collinearity int
 Additionally, if both features are close to the same price, then it provides a stronger indication.
 
 - `intraday_range`
+
 $$intraday.range = (high - low) / close$$
 
 The volatility of a candlestick bar, normalized over the opening stock price of the trading day (or whatever time it's aggregated if it is). This captures the price changes in the market in an efficient way for the model.
 
 - `gap`
+
 $$(open_t - close_{t-1}) / close_{t-1}$$
 
 The volatility of the entire trading day, normalized over the ending stock price of the day. This is useful for capturing market overnight/pre-market information (e.g. Apple bankrupts overnight, then price change will be reflected at the start of the trading day). At 1-minute resolution this feature is only non-zero on the first bar of each session.
 
 - `close_position`
+
 $$(close_t - low_t) / (high_t - low_t)$$
 
 The interval scale of the bar between $[0,1]$, where it's bearish when closer to $0$, and bullish for $1$. The closing price of a stock doesn't change unless it is the lowest price, so this metric takes advantage of that to capture the sort of "bearishness" of the market.
@@ -147,6 +151,7 @@ The `close_to_sma` feature just shows how far the current stock's price is from 
 The `sma_60_390_cross` is the intraday equivalent of the golden/death cross, with a formula of $SMA_{60} / SMA_{390} - 1$. This metric accounts for intraday regime changes where when $SMA_{60} > SMA_{390}$ it indicates the last hour is running above the daily average (bullish), while vice versa is bearish.
 
 - `ema_windows`
+
 $$
 \alpha * close_t + (1-\alpha) * EMA_{t-1} \ \ \text{ where }\ \  \alpha = 2/(n+1)
 $$
@@ -154,19 +159,17 @@ $$
 Similar to SMA, except it places higher emphasis on more recent prices. Windows: **12** (12 min), **26** (26 min), **60** (1 hour).
 
 - `rsi_window`
-$$
-RS = \text{Average.Gain}_n / \text{Average.Loss}_n \\
-RSI = 100 - (100 / (1 + RS))
-$$
+
+$$RS = \text{Average.Gain}_n / \text{Average.Loss}_n$$
+$$RSI = 100 - (100 / (1 + RS))$$
 
 The Relative Strength Index (overbought if more than 70, underbought if less than 30).
 
 - `macd_windows`
-$$
-\text{MACD.Line} = EMA_{12} - EMA_{26} \\
-\text{Signal.Line} = EMA_9 \\
-\text{Histogram} = \text{MACD.Line} - \text{Signal.Line}
-$$
+
+$$\text{MACD.Line} = EMA_{12} - EMA_{26}$$
+$$\text{Signal.Line} = EMA_9$$
+$$\text{Histogram} = \text{MACD.Line} - \text{Signal.Line}$$
 
 The MACD line uses a smaller time frame EMA and a larger time frame EMA and subtracts them to see if there is positive momentum, i.e. the smaller time frame EMA average is larger.
 This is compared against an EMA (usually EMA_9), which serves as the "standard" average, or the signal line.
@@ -174,14 +177,13 @@ Under the the histogram, once there is enough positive momentum, MACD line will 
 
 - `bb_width`
 - `bb_position`
-$$
-\text{middle.Band} = SMA_{60} \\
-\text{upper.Band} = \text{middle.Band} + 2\sigma \\
-\text{lower.Band} = \text{middle.Band} - 2\sigma \\
-\\
-\text{bb.Width} = (bb.Upper - \text{bb.Lower}) / \text{bb.Middle} \\
-\text{bb.Position} = (close - \text{bb.Lower}) / (\text{bb.Upper} - \text{bb.Lower})
-$$
+
+$$\text{middle.Band} = SMA_{60}$$
+$$\text{upper.Band} = \text{middle.Band} + 2\sigma$$
+$$\text{lower.Band} = \text{middle.Band} - 2\sigma$$
+
+$$\text{bb.Width} = (bb.Upper - \text{bb.Lower}) / \text{bb.Middle}$$
+$$\text{bb.Position} = (close - \text{bb.Lower}) / (\text{bb.Upper} - \text{bb.Lower})$$
 
 The Bollinger bands (bb) are based on the normal distribution property that 95% of data falls within 2 standard deviations of the mean, and uses this fact to measure recent volatility by noting that any stock price outside of the 2 standard deviations likely indicates momentum. The bb width shows the average of this range, while the bb position is the normalized location of the current price relative to said range, where it's bullish when greater than 1 and bearish when below 0.
 
@@ -190,6 +192,7 @@ The Bollinger bands (bb) are based on the normal distribution property that 95% 
 Along with returns and momentum, we want to measure how volatile the stock is.
 
 - `volatility_windows`
+
 $$
 \sigma_{\text{historical}} = std(\text{log.Returns}_n) * \sqrt{k}
 $$
@@ -197,6 +200,7 @@ $$
 This metric looks at the volatility of the returns and does so by looking at the standard deviation for k periods, where $k$ = number of trading periods in a year, as we want to see the volatility of the returns annualized. For 1-minute bars, $k = 252 \times 390 = 98,280$ trading minutes per year. Windows: **15, 30, 60** minutes.
 
 - `parkinson_vol`
+
 $$
 \sqrt{[\frac{1}{4ln(2)}] * \frac{1}{n}[\sum ln(\frac{high_i}{low_i})^2]} * \sqrt{k}
 $$
@@ -204,6 +208,7 @@ $$
 The Parkinson volatility estimator measures volatility with 5x more accuracy due to it using the High and Low metric for more information, as well as it using a scaling factor based on Brownian motion ($\frac{1}{4ln(2)}$); all annualized with $k = 98,280$. Windows: **15, 30, 60** minutes.
 
 - `gk_vol`
+
 $$
 \sqrt{\frac{1}{n}\sum[ [0.5 ln(\frac{high}{low})^2] - [2ln(2)-1] * [ln(\frac{close}{open})^2] ]} * \sqrt{k}
 $$
@@ -227,10 +232,9 @@ $$
 The relative volume metric: the percentage of the current stock's volume over the moving average of the volume.
 
 - `price_to_vwap`
-$$
-VWAP = \sum(\text{typical.Price}_i * \text{volume}_i) / \sum(\text{volume}_i) \\
-\ \ \text{ where }\ \  \text{typical.Price} = \frac{1}{3}[\text{high} + \text{low} + \text{close}]
-$$
+
+$$VWAP = \sum(\text{typical.Price}_i * \text{volume}_i) / \sum(\text{volume}_i)$$
+$$\ \ \text{ where }\ \  \text{typical.Price} = \frac{1}{3}[\text{high} + \text{low} + \text{close}]$$
 
 The Volume Weighted Average Price learns during a trading day and works by taking the average of the typical candlestick bar's price, weighted by cumulative volume traded for the current trading day. The reason for the cumulative volume is to capture **inertia**, where stronger inertia means stronger bullish/bearish movements instead of just volatile sideways movement.
 
@@ -240,10 +244,8 @@ VWAP resets at market open every day (cumulative daily reset), which is what ins
 
 - `obv_divergence`
 
-$$
-OBV_t = OBV_{t-1} + \text{sign}(\text{close}_t - \text{close}_{t-1}) * \text{volume}_t \\
-OBV.Divergence = (OBV_t - MA.OBV_m)/OBV_t \ \ \text{ where m is the sliding window of the OBV moving avg}
-$$
+$$OBV_t = OBV_{t-1} + \text{sign}(\text{close}_t - \text{close}_{t-1}) * \text{volume}_t$$
+$$OBV.Divergence = (OBV_t - MA.OBV_m)/OBV_t \ \ \text{ where m is the sliding window of the OBV moving avg}$$
 
 The On-Balance Volume divergence indicator learns during a trading day by measuring the momentum of a candlestick bar price via comparing the previous OBV value to the volume-weighted change in candlestick bar prices. Note that the $\text{sign}$ is positive if $Close_t > Close_{t-1}$, and negative otherwise.
 
@@ -251,10 +253,8 @@ After getting $OBV_t$, it then compares the percentage difference between $OBV_t
 
 - `money_flow_ratio`
 
-$$
-\text{money.flow} = \text{close} * \text{volume} \\
-\text{money.flow.ratio} = MA(\text{money.flow})_{60} / MA(\text{money.flow})_{120}
-$$
+$$\text{money.flow} = \text{close} * \text{volume}$$
+$$\text{money.flow.ratio} = MA(\text{money.flow})_{60} / MA(\text{money.flow})_{120}$$
 
 The money flow ratio takes the moving average of the stock value (close * volume) for n bars, over the same moving average but with double the window, essentially comparing the current hour's flow to the prior two hours.
 
@@ -268,34 +268,31 @@ Market prices can vary depending on the time of the day, week, season.
 In order to account for that, we also include features regarding the time/date.
 
 - `hour_sin`, `hour_cos`
-$$
-\text{hour.sin} = sin((2\pi * hour) / 24) \\
-\text{hour.cos} = cos((2\pi * hour) / 24)
-$$
+
+$$\text{hour.sin} = sin((2\pi * hour) / 24)$$
+$$\text{hour.cos} = cos((2\pi * hour) / 24)$$
 
 When incorporating time, we use sine and cosine as to represent time wrapping around because for e.g. hour=23 and hour=0 should be 1 hour away from each other, not 23 hours away from each other.
 
 - `minute_sin`, `minute_cos`
-$$
-\text{minute.sin} = sin((2\pi * minute) / 60) \\
-\text{minute.cos} = cos((2\pi * minute) / 60)
-$$
+
+$$\text{minute.sin} = sin((2\pi * minute) / 60)$$
+$$\text{minute.cos} = cos((2\pi * minute) / 60)$$
 
 At 1-minute resolution, every bar has a distinct minute value, so the model can now learn intraday patterns at the minute level — for example, that the `:00` bar (top of the hour) tends to have a volume spike, or that the `:30` bar is typically quieter.
 
 - `dow_sin`, `dow_cos`
-$$
-\text{dow.sin} = sin((2\pi * dow) / 7) \\
-\text{dow.cos} = cos((2\pi * dow) / 7)
-$$
+
+$$\text{dow.sin} = sin((2\pi * dow) / 7)$$
+$$\text{dow.cos} = cos((2\pi * dow) / 7)$$
 
 We apply the same but for the day of the week with its 7 total days.
 
 - `dom_sin`, `dom_cos`
-$$
-\text{dom.sin} = sin((2\pi * dom) / 31) \\
-\text{dom.cos} = cos((2\pi * dom) / 31)
-$$
+
+$$\text{dom.sin} = sin((2\pi * dom) / 31)$$
+$$\text{dom.cos} = cos((2\pi * dom) / 31)$$$
+
 
 We apply the same but for the day of the month with its 31 total days, which although can differ depending on month and if its a leap year such that it can be $30$ or $28$ (if February), it doesn't matter much as the model will still learn that larger values in $\text{dom.sin}$ and $\text{dom.cos}$ tend to correlate with the end of the month.
 
